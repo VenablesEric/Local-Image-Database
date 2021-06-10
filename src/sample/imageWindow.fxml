@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="sample.ControllerImageWindow">
+   <children>
+      <HBox maxHeight="1.7976931348623157E308" maxWidth="1.7976931348623157E308" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+         <children>
+            <ScrollPane fx:id="scrollPane" HBox.hgrow="ALWAYS" />
+            <VBox prefWidth="200.0">
+               <children>
+                  <HBox prefHeight="100.0" prefWidth="200.0">
+                     <children>
+                        <ComboBox fx:id="comboBox" editable="true" onKeyReleased="#OnEnterKey" onShowing="#FillComboBox" prefWidth="150.0" />
+                        <Button mnemonicParsing="false" text="Add" />
+                     </children>
+                  </HBox>
+                  <Button mnemonicParsing="false" text="Button" />
+                  <ListView fx:id="tagTable" prefHeight="200.0" prefWidth="200.0" />
+                  <HBox prefHeight="100.0" prefWidth="200.0">
+                     <children>
+                        <Button mnemonicParsing="false" onAction="#PrintMetaData" text="Reset" />
+                        <Button mnemonicParsing="false" onAction="#SaveImageTags" text="Save" />
+                     </children>
+                  </HBox>
+               </children>
+            </VBox>
+         </children>
+      </HBox>
+   </children>
+</AnchorPane>
