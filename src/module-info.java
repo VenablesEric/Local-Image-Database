@@ -7,4 +7,7 @@ module LocalImageDatabase {
 
     opens sample;
     opens sample.model;
+    opens sample.controllers;
+    opens sample.resources;
+    opens sample.util;
 }

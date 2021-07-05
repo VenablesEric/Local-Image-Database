@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane prefHeight="400.0" prefWidth="400.0" xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="sample.controllers.SettingsWindowController">
+   <children>
+      <VBox prefHeight="200.0" prefWidth="100.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+         <children>
+            <ScrollPane prefHeight="200.0" prefWidth="200.0">
+              <content>
+                <AnchorPane>
+                     <children>
+                        <ListView fx:id="listView" layoutX="71.0" layoutY="-28.0" prefHeight="200.0" prefWidth="400.0" AnchorPane.bottomAnchor="201.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="-153.0" AnchorPane.topAnchor="0.0" />
+                     </children>
+                  </AnchorPane>
+              </content>
+            </ScrollPane>
+            <HBox prefHeight="100.0" prefWidth="200.0">
+               <children>
+                  <Button mnemonicParsing="false" onAction="#OpenFolderChooser" text="Add" />
+                  <Button mnemonicParsing="false" onAction="#removeFolders" text="Remove" />
+               </children>
+            </HBox>
+            <Button mnemonicParsing="false" onAction="#update" text="Save" />
+            <Button mnemonicParsing="false" onAction="#restore" text="Restore" />
+         </children>
+      </VBox>
+   </children>
+</AnchorPane>

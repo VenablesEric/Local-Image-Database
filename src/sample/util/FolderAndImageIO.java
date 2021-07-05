@@ -1,14 +1,25 @@
-package sample;
+package sample.util;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class FolderImageScanner {
+public class FolderAndImageIO {
 
-    public static List<String> Scan(String directory) {
+    private static final String[] fileTypes = {"png","jpeg", "jpg"};
+
+    public static List<String> ScanForImages(List<String> folders)
+    {
+        List<String> imageDirectories = new ArrayList<>();
+
+        for (String folder : folders) {
+            imageDirectories.addAll(ScanFolder(folder));
+        }
+
+        return imageDirectories;
+    }
+
+    public static List<String> ScanFolder(String directory) {
         List<String> test = new ArrayList<>();
         getAllImages(directory,test);
 
@@ -42,7 +53,6 @@ public class FolderImageScanner {
         }
     }
 
-    static String[] fileTypes = {"png","jpeg", "jpg"};
     private static boolean isValidImageType(String fileName)
     {
         if(fileName == null)
@@ -83,5 +93,40 @@ public class FolderImageScanner {
         }
 
         return null;
+    }
+
+    public static List<String> getAllImages2(String directoryName, List<String> toSkip)
+    {
+        List<String> images = new ArrayList<>();
+
+        if(toSkip == null)
+            toSkip = new ArrayList<>();
+
+        if(toSkip.contains(directoryName))
+            return images;
+
+        toSkip.add(directoryName);
+
+        File directory = new File(directoryName);
+        File[] files = directory.listFiles();
+
+        for (File file : files) {
+            if (file.isDirectory()) {
+                images.addAll(getAllImages2(file.getAbsolutePath(),toSkip));
+            } else if (isValidImageType(file.getName())) {
+                images.add(file.getAbsolutePath());
+            }
+        }
+        return images;
+    }
+
+    public static boolean hasImage(String imageDir)
+    {
+        File file = new File(imageDir);
+
+        if(file.exists() && !file.isDirectory())
+            return true;
+
+        return false;
     }
 }

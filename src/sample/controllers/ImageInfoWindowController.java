@@ -1,11 +1,9 @@
-package sample;
+package sample.controllers;
 
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
-import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.geometry.Pos;
@@ -29,31 +27,32 @@ import java.util.Objects;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
 
-public class ControllerImageWindow implements Initializable {
+public class ImageInfoWindowController implements Initializable {
 
 
     @FXML
     ScrollPane scrollPane;
 
     @FXML
-    ListView tagTable;
+    ListView<String> tagTable;
 
     @FXML TextField input;
 
-    List<String> image_Tags = new ArrayList<String>();
+    List<String> originalImageTagList = new ArrayList<String>();
 
-    private ObservableList<String> myListTest = FXCollections.observableArrayList();
+    private ObservableList<String> imageTags = FXCollections.observableArrayList();
 
     private String imagePath = "";
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         System.out.println("1st");
-        tagTable.setItems(myListTest);
+        tagTable.setItems(imageTags);
     }
 
     @FXML
     ComboBox comboBox;
+
     public void SetImage(String path) {
 
         imagePath = path;
@@ -116,8 +115,9 @@ public class ControllerImageWindow implements Initializable {
         Task<ObservableList> task = new Task<ObservableList>() {
             @Override
             protected ObservableList call() throws Exception {
-                myListTest.clear();
-                myListTest.addAll(Datasource.getInstance().queryTagsForImage(imagePath));
+                imageTags.clear();
+                originalImageTagList = Datasource.getInstance().queryTagsOnImage(imagePath);
+                imageTags.addAll(originalImageTagList);
                 return null;
                 /*return FXCollections.observableArrayList
                         (Datasource.getInstance().queryTagsForImage(imagePath));*/
@@ -136,25 +136,70 @@ public class ControllerImageWindow implements Initializable {
                 return;
 
             //if(!image_Tags.contains(comboBox.getValue().toString()))
-            if(!myListTest.contains(comboBox.getValue().toString()))
+            if(!imageTags.contains(comboBox.getValue().toString()))
             {
                 //image_Tags.add(comboBox.getValue().toString());
-                myListTest.add(comboBox.getValue().toString());
+                imageTags.add(comboBox.getValue().toString());
                 System.out.println("Added");
             }
         }
     }
 
+    @FXML
+    public void btnAddTag()
+    {
+        if(comboBox.getValue() == null || comboBox.getValue().toString().isBlank())
+            return;
+
+        if(!imageTags.contains(comboBox.getValue().toString()))
+        {
+            //image_Tags.add(comboBox.getValue().toString());
+            imageTags.add(comboBox.getValue().toString());
+            System.out.println("Added");
+        }
+    }
+
+    @FXML
+    public void removeTage() {
+        String selectedItem = tagTable.getSelectionModel().getSelectedItem();
+
+        if (selectedItem != null)
+            imageTags.remove(selectedItem);
+    }
+
+    @FXML
+    public void reset()
+    {
+        imageTags.clear();
+        imageTags.addAll(originalImageTagList);
+    }
+
     public void SaveImageTags()
     {
-        List<String> tmp = myListTest.stream()
+        List<String> tags = imageTags.stream()
                 .map(object -> Objects.toString(object, null))
                 .collect(Collectors.toList());
 
-        for(String s : tmp)
+        List<String> tageToRemove = new ArrayList<>(originalImageTagList);
+        tageToRemove.removeAll(tags);
+
+        List<String> tagsToAdd = new ArrayList<>(tags);
+        tagsToAdd.removeAll(originalImageTagList);
+
+
+        for (String tagToRemove : tageToRemove)
         {
-            Datasource.getInstance().insertNewTag(imagePath,s);
+            System.out.println("To Remove: "+ tagToRemove);
+            Datasource.getInstance().deleteImageTag(imagePath, tagToRemove);
         }
+
+        for(String tagToAdd : tagsToAdd)
+        {
+            System.out.println("To Add: "+ tagToAdd);
+            Datasource.getInstance().insertImageTag(imagePath,tagToAdd);
+        }
+
+        originalImageTagList = tags;
         //MyCostomImage.WriteData(imagePath,tmp);
     }
 
@@ -165,7 +210,8 @@ public class ControllerImageWindow implements Initializable {
 
     public void FillComboBox()
     {
-        comboBox.getItems().addAll(Datasource.getInstance().queryTagsAll());
+        comboBox.getItems().setAll(Datasource.getInstance().queryTags());
+        //comboBox.getItems().addAll(Datasource.getInstance().queryTags());
     }
 
     public void AddTag()

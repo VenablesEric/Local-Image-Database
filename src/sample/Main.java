@@ -2,56 +2,36 @@ package sample;
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.event.EventHandler;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.stage.Stage;
+import sample.controllers.MainWindowController;
 import sample.model.Datasource;
-
-import java.util.List;
 
 public class Main extends Application {
 
+    private static final String MAIN_WINDOW_DIRECTORY = "resources/MainWindow.fxml";
+    private static final String APPLICATION_TITLE = "Local Image Database";
+
+    private static final int MAIN_WINDOW_WIDTH = 800;
+    private static final int MAIN_WINDOW_HEIGHT = 600;
+
+
     @Override
     public void start(Stage primaryStage) throws Exception{
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("sample.fxml"));
-        Parent root = loader.load();
-        Controller controller = loader.getController();
-        //controller.listImages(0);
+        FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource(MAIN_WINDOW_DIRECTORY));
+        Parent root = fxmlLoader.load();
+        MainWindowController mainWindowController = fxmlLoader.getController();
 
-        Datasource.getInstance().insertFolder("C:\\Users\\Blank\\Pictures\\TestFolder");
-
-        List<String> folders = Datasource.getInstance().queryFolders();
-        for (String folder: folders) {
-            System.out.println(folder);
-            List<String> test = FolderImageScanner.Scan(folder);
-
-            if(test != null) {
-                for (String insert : test) {
-                    Datasource.getInstance().insertImage(insert);
-                }
-            }
-        }
-
-        controller.UpdateData();
-        controller.listImages(1);
-
-        controller.textfield.setOnKeyReleased(new EventHandler<KeyEvent>() {
-            @Override
-            public void handle(KeyEvent event) {
-                if(event.getCode().equals(KeyCode.ENTER))
-                    controller.JumpToPage();
-            }
-        });
-
-        primaryStage.setTitle("Local Image Database");
-        primaryStage.setScene(new Scene(root, 800, 600));
-        primaryStage.show();
+        primaryStage.setTitle(APPLICATION_TITLE);
+        primaryStage.setScene(new Scene(root, MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT));
 
         primaryStage.setOnCloseRequest(e -> Platform.exit());
+
+        mainWindowController.initialise();
+
+        primaryStage.show();
     }
 
 
