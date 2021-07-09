@@ -224,9 +224,16 @@ public class Datasource {
 
     public boolean open() {
         try {
+
+            if(connection != null && !connection.isClosed())
+            {
+                System.out.println("Database is already connected");
+                return false;
+            }
+
             connection = DriverManager.getConnection("jdbc:sqlite:" + System.getProperty("user.dir") + DATABASE_NAME); // Load or create new database at .exe path
 
-            boolean connected = DatabaseSetup();
+            boolean connected = databaseSetup();
             insertFolderStatement = connection.prepareStatement(INSERT_FOLDER);
             insertImageStatement = connection.prepareStatement(INSERT_IMAGE, Statement.RETURN_GENERATED_KEYS);
             insertTagStatement = connection.prepareStatement(INSERT_TAG, Statement.RETURN_GENERATED_KEYS);
@@ -252,7 +259,7 @@ public class Datasource {
         }
     }
 
-    private boolean DatabaseSetup() {
+    private boolean databaseSetup() {
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate(ENABLE_FOREIGN_KEYS);
             statement.executeUpdate(CREATE_TABLE_FOLDERS);
@@ -558,7 +565,7 @@ public class Datasource {
 
     public List<String> queryImagesWithTags(List<String> tags, int from, int next) {
 
-        try (PreparedStatement statement = connection.prepareStatement(CreateQueryImagesWithTagsLimitStatement(tags))) {
+        try (PreparedStatement statement = connection.prepareStatement(createQueryImagesWithTagsLimitStatement(tags))) {
 
             int i = 1;
             while (i <= tags.size()) {
@@ -589,7 +596,7 @@ public class Datasource {
         }
     }
 
-    private String CreateQueryImagesWithTagsLimitStatement(List<String> tags) {
+    private String createQueryImagesWithTagsLimitStatement(List<String> tags) {
         StringBuilder sb = new StringBuilder();
         sb.append(QUERY_IMAGES_WITH_TAGS_LIMIT_PART_1);
 
@@ -602,13 +609,12 @@ public class Datasource {
 
         sb.append(QUERY_IMAGES_WITH_TAGS_LIMIT_PART_2);
 
-        System.out.println(sb.toString());
         return sb.toString();
     }
 
     public int queryCountImagesWithTags(List<String> tags) {
 
-        try (PreparedStatement statement = connection.prepareStatement(CreateQueryImagesCountStatement(tags))) {
+        try (PreparedStatement statement = connection.prepareStatement(createQueryImagesCountStatement(tags))) {
 
             int i = 1;
             while (i <= tags.size()) {
@@ -631,7 +637,7 @@ public class Datasource {
         }
     }
 
-    private String CreateQueryImagesCountStatement(List<String> tags) {
+    private String createQueryImagesCountStatement(List<String> tags) {
 
         StringBuilder sb = new StringBuilder();
         sb.append(QUERY_IMAGES_COUNT_WHERE_PART_1);
@@ -645,7 +651,6 @@ public class Datasource {
 
         sb.append(QUERY_IMAGES_COUNT_WHERE_PART_2);
 
-        System.out.println(sb.toString());
         return sb.toString();
     }
 

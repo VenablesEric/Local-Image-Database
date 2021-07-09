@@ -4,179 +4,193 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
+import javafx.event.Event;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.fxml.Initializable;
 import javafx.geometry.Pos;
-import javafx.scene.control.ScrollPane;
+import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.ListView;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 import sample.model.Datasource;
+import sample.model.DatasourceController;
 
-import java.awt.TextField;
 import java.io.File;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.ResourceBundle;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
-public class ImageInfoWindowController implements Initializable {
+public class ImageInfoWindowController {
 
+    private static Stage stage;
+    private static ImageInfoWindowController instance;
+
+    private final String IMAGE_INFO_WINDOW_TITLE = "Image Info: ";
 
     @FXML
-    ScrollPane scrollPane;
-
+    private ScrollPane imageScrollPane;
     @FXML
-    ListView<String> tagTable;
+    private ListView<String> imageTagsListView;
+    @FXML
+    ComboBox imageTagsComboBox;
 
-    @FXML TextField input;
+    private ObservableList<String> imageTagList = FXCollections.observableArrayList();
+    private List<String> originalImageTagList = new ArrayList<>();
 
-    List<String> originalImageTagList = new ArrayList<String>();
+    private String imageDirectory;
 
-    private ObservableList<String> imageTags = FXCollections.observableArrayList();
+    private final int imageSize = 500;
 
-    private String imagePath = "";
-
-    @Override
-    public void initialize(URL location, ResourceBundle resources) {
-        System.out.println("1st");
-        tagTable.setItems(imageTags);
+    public static ImageInfoWindowController getInstance() {
+        return instance;
     }
 
-    @FXML
-    ComboBox comboBox;
+    public static Stage getStage() {
+        return stage;
+    }
 
-    public void SetImage(String path) {
+    public void initialize(Stage stage, String imageDirectory) {
 
-        imagePath = path;
+        instance = this;
+        ImageInfoWindowController.stage = stage;
+
+        stage.setTitle(IMAGE_INFO_WINDOW_TITLE + imageDirectory);
+
+        stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
+            @Override
+            public void handle(WindowEvent event) {
+                List<String> tags = imageTagList.stream()
+                        .map(object -> Objects.toString(object, null))
+                        .collect(Collectors.toList());
+
+                if (!tags.equals(originalImageTagList)) {
+                    if(unsavedDataAlert())
+                    {
+                        ImageInfoWindowController.stage = null;
+                    } else
+                    {
+                        event.consume();
+                    }
+                } else
+                {
+                    ImageInfoWindowController.stage = null;
+                }
+            }
+        });
+
+        imageTagsListView.setItems(imageTagList);
+        this.imageDirectory = imageDirectory;
 
         Task task = new Task() {
             @Override
             protected Object call() throws Exception {
-                createElements(path);
-                SetTagTable(path);
-                return  null;
+                setImageTagList(imageDirectory);
+                createImage(imageDirectory);
+                return null;
             }
         };
 
         new Thread(task).start();
     }
 
-    public void createElements(String path)
-    {
-        VBox vBox = CreateImage(path);
+    private void createImage(String path) {
 
-        Platform.runLater(new Runnable() {
-            @Override
-            public void run() {
-                scrollPane.setContent(vBox);
-            }
-        });
-    }
-
-    private VBox CreateImage(String path)
-    {
-        ImageView imageView = new ImageView();
-
-        try
-        {
+        try {
             File file = new File(path);
             Image image = new Image(file.toURI().toString());
-            imageView.setImage(image);
+            ImageView imageView = new ImageView(image);
 
-            imageView.setFitWidth(500);
-            imageView.setFitHeight(500);
+            imageView.setFitWidth(imageSize);
+            imageView.setFitHeight(imageSize);
 
             imageView.setPreserveRatio(true);
-
             imageView.setSmooth(true);
 
-            VBox pageBox = new VBox();
-            pageBox.setAlignment(Pos.CENTER);
-            pageBox.getChildren().add(imageView);
+            VBox imageContainer = new VBox();
+            imageContainer.setAlignment(Pos.CENTER);
+            imageContainer.getChildren().add(imageView);
 
-            return pageBox;
+            Platform.runLater(new Runnable() {
+                @Override
+                public void run() {
+                    imageScrollPane.setContent(imageContainer);
+                }
+            });
 
         } catch (IllegalArgumentException e) {
-            return null;
+            System.out.println("Could not load image: " + imageDirectory);
+            System.out.println(e.getMessage());
         }
     }
 
-    private void SetTagTable(String imagePath)
-    {
-        System.out.println("2nd");
+    private void setImageTagList(String imageDirectory) {
+
         Task<ObservableList> task = new Task<ObservableList>() {
             @Override
             protected ObservableList call() throws Exception {
-                imageTags.clear();
-                originalImageTagList = Datasource.getInstance().queryTagsOnImage(imagePath);
-                imageTags.addAll(originalImageTagList);
+                originalImageTagList = DatasourceController.queryTagsOnImage(imageDirectory);
+
+                Platform.runLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        imageTagList.setAll(originalImageTagList);
+                    }
+                });
+
                 return null;
-                /*return FXCollections.observableArrayList
-                        (Datasource.getInstance().queryTagsForImage(imagePath));*/
             }
         };
 
-        //tagTable.itemsProperty().bind(task.valueProperty());
-
         new Thread(task).start();
-
     }
 
-    public void OnEnterKey(KeyEvent event) {
-        if(event.getCode().equals(KeyCode.ENTER)) {
-            if(comboBox.getValue() == null || comboBox.getValue().toString().isBlank())
+    @FXML
+    private void onEnterKeyImageTagComboBox(KeyEvent event) {
+        if (event.getCode().equals(KeyCode.ENTER)) {
+            if (imageTagsComboBox.getValue() == null || imageTagsComboBox.getValue().toString().isBlank())
                 return;
 
-            //if(!image_Tags.contains(comboBox.getValue().toString()))
-            if(!imageTags.contains(comboBox.getValue().toString()))
-            {
-                //image_Tags.add(comboBox.getValue().toString());
-                imageTags.add(comboBox.getValue().toString());
-                System.out.println("Added");
+            if (!imageTagList.contains(imageTagsComboBox.getValue().toString())) {
+                imageTagList.add(imageTagsComboBox.getValue().toString());
             }
         }
     }
 
     @FXML
-    public void btnAddTag()
-    {
-        if(comboBox.getValue() == null || comboBox.getValue().toString().isBlank())
+    private void addImageTagToList() {
+        if (imageTagsComboBox.getValue() == null || imageTagsComboBox.getValue().toString().isBlank())
             return;
 
-        if(!imageTags.contains(comboBox.getValue().toString()))
-        {
-            //image_Tags.add(comboBox.getValue().toString());
-            imageTags.add(comboBox.getValue().toString());
-            System.out.println("Added");
+        if (!imageTagList.contains(imageTagsComboBox.getValue().toString())) {
+            imageTagList.add(imageTagsComboBox.getValue().toString());
         }
     }
 
     @FXML
-    public void removeTage() {
-        String selectedItem = tagTable.getSelectionModel().getSelectedItem();
+    private void removeImageTagFromList() {
+        String selectedItem = imageTagsListView.getSelectionModel().getSelectedItem();
 
         if (selectedItem != null)
-            imageTags.remove(selectedItem);
+            imageTagList.remove(selectedItem);
     }
 
     @FXML
-    public void reset()
-    {
-        imageTags.clear();
-        imageTags.addAll(originalImageTagList);
+    private void resetImageTagList() {
+        imageTagList.clear();
+        imageTagList.addAll(originalImageTagList);
     }
 
-    public void SaveImageTags()
-    {
-        List<String> tags = imageTags.stream()
+    @FXML
+    private void saveImageTags() {
+        List<String> tags = imageTagList.stream()
                 .map(object -> Objects.toString(object, null))
                 .collect(Collectors.toList());
 
@@ -187,35 +201,80 @@ public class ImageInfoWindowController implements Initializable {
         tagsToAdd.removeAll(originalImageTagList);
 
 
-        for (String tagToRemove : tageToRemove)
-        {
-            System.out.println("To Remove: "+ tagToRemove);
-            Datasource.getInstance().deleteImageTag(imagePath, tagToRemove);
+        for (String tagToRemove : tageToRemove) {
+            System.out.println("To Remove: " + tagToRemove);
+            DatasourceController.deleteImageTag(imageDirectory, tagToRemove);
         }
 
-        for(String tagToAdd : tagsToAdd)
-        {
-            System.out.println("To Add: "+ tagToAdd);
-            Datasource.getInstance().insertImageTag(imagePath,tagToAdd);
+        for (String tagToAdd : tagsToAdd) {
+            System.out.println("To Add: " + tagToAdd);
+            DatasourceController.insertImageTag(imageDirectory, tagToAdd);
         }
 
         originalImageTagList = tags;
-        //MyCostomImage.WriteData(imagePath,tmp);
     }
 
-    public void PrintMetaData()
-    {
-        //MyCostomImage.Read(imagePath);
+    @FXML
+    private void setTagsForComboBox() {
+        imageTagsComboBox.getItems().setAll(DatasourceController.queryTags());
     }
 
-    public void FillComboBox()
+
+    private boolean unsavedDataAlert()
     {
-        comboBox.getItems().setAll(Datasource.getInstance().queryTags());
-        //comboBox.getItems().addAll(Datasource.getInstance().queryTags());
+        ButtonType saveButton = new ButtonType("Save", ButtonBar.ButtonData.YES);
+        ButtonType doNotSaveButton = new ButtonType("Don't Save", ButtonBar.ButtonData.NO);
+        ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        //Alert.AlertType type = Alert.AlertType.CONFIRMATION;
+
+        Alert alert = new Alert(Alert.AlertType.WARNING, "", saveButton, doNotSaveButton, cancelButton);
+        alert.initModality(Modality.APPLICATION_MODAL);
+        alert.initOwner(stage);
+
+        alert.getDialogPane().setHeaderText("Save Changes?");
+
+        alert.getDialogPane().setContentText("Do you want to save changes to the image tags?");
+
+        Optional<ButtonType> result = alert.showAndWait();
+
+        if(result.get() == saveButton)
+        {
+            saveImageTags();
+            return true;
+        }
+        else if(result.get() == doNotSaveButton)
+        {
+            return true;
+        }
+        else if(result.get() == cancelButton)
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    public void AddTag()
+    public void swapImage(String imageDirectory)
     {
+        if(this.imageDirectory.equals(imageDirectory))
+        {
+            stage.requestFocus();
+            return;
+        }
 
+        List<String> tags = imageTagList.stream()
+                .map(object -> Objects.toString(object, null))
+                .collect(Collectors.toList());
+
+        if (!tags.equals(originalImageTagList)) {
+            if(!unsavedDataAlert())
+            {
+                return;
+            }
+        }
+
+        stage.requestFocus();
+        initialize(stage, imageDirectory);
     }
 }

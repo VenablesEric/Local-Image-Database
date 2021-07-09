@@ -1,6 +1,8 @@
 package sample.controllers;
 
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
@@ -25,6 +27,7 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import sample.Main;
 import sample.model.Datasource;
+import sample.model.DatasourceController;
 import sample.util.MathematicalEquations;
 
 
@@ -32,335 +35,323 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 // Reset scroll area when goinh to nect paga
 public class MainWindowController {
 
-    @FXML
-    private TilePane tilePane;
-
-    @FXML
-    private ProgressBar progressBar;
-
-    @FXML TextField pageNumberfield;
-    @FXML Label maxPageNolabel;
-    @FXML ScrollPane scrollPane;
-
-    @FXML
-    ComboBox comboBox;
-    private ObservableList<String> filterTags = FXCollections.observableArrayList();
-    @FXML
-    ListView<String> tagTable;
-
-    private int imageCount = 0;
-    private final int imagesPerPge = 20;
-    private int pageNo = 0;
-    private int maxPageNo = 0;
-
-    //private  List<String> tagFilter = new ArrayList<>();
-
-    private ReentrantLock lock = new ReentrantLock();
-
-    private Stage folderStage;
-
     private static MainWindowController instances;
+
+    @FXML
+    private ScrollPane ImageContainerScrollPane;
+    @FXML
+    private TilePane ImageContainerTilePane;
+    @FXML
+    private TextField pageNumberField;
+    @FXML
+    private Label maxPageNumberLabel;
+    @FXML
+    private ComboBox imageTagsComboBox;
+    @FXML
+    private ListView<String> imageTagsFilterTable;
+
+    private ObservableList<String> imageTagsFilterList = FXCollections.observableArrayList();
+
+    private final int imagesPerPge = 20;
+    private int imageCount = 0;
+    private int currentPageNumber = 0;
+    private int maxPageNumber = 0;
+
+    private final int imageWidth = 200;
+
+    //private Stage imageInfoWindowStage;
+    private final String IMAGE_INFO_WINDOW_DIRECTORY = "resources/ImageInfoWindow.fxml";
+    private final int IMAGE_INFO_WINDOW_WIDTH = 800;
+    private final int IMAGE_INFO_WINDOW_HEIGHT = 400;
+
+    //private Stage settingsWindowStage;
+    private final String SETTINGS_WINDOW_DIRECTORY = "resources/SettingsWindow.fxml";
+    private final String SETTINGS_WINDOW_TITLE = "Settings Window";
+    private final int SETTINGS_WINDOW_WIDTH = 400;
+    private final int SETTINGS_WINDOW_HEIGHT = 400;
+
+    private Task task;
 
     public static MainWindowController getInstances() {
         return instances;
     }
 
-    public void initialise()
-    {
+    public void initialise() {
         instances = this;
 
-        pageNumberfield.setOnKeyReleased(new EventHandler<KeyEvent>() {
+        pageNumberField.setOnKeyReleased(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent event) {
-                if(event.getCode().equals(KeyCode.ENTER))
-                   JumpToPage();
+                if (event.getCode().equals(KeyCode.ENTER))
+                    jumpToPage();
             }
         });
 
-        tagTable.setItems(filterTags);
-        UpdateData();
-    }
 
-    @FXML
-    public void displayImages(int pageNumber){
-
-        Task task = new Task() {
+        pageNumberField.textProperty().addListener(new ChangeListener<String>() {
             @Override
-            protected Object call() throws Exception {
-                if(lock.tryLock())
-                {
-                    try
-                    {
-                        List<String> imageDirectories;
-                        if(filterTags.size() == 0)
-                            imageDirectories = Datasource.getInstance().queryImages((pageNumber - 1) * imagesPerPge, imagesPerPge);
-                        else {
-                            List<String> tags = filterTags.stream()
-                                    .map(object -> Objects.toString(object, null))
-                                    .collect(Collectors.toList());
-                            imageDirectories = Datasource.getInstance().queryImagesWithTags(tags, (pageNumber - 1) * imagesPerPge, imagesPerPge);
-                        }
-
-                        createImages(imageDirectories);
-                    } finally {
-                        lock.unlock();
-                    }
-                } else
-                {
-                    System.out.println("Still loading!");
+            public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
+                if(!newValue.matches("\\d*")) {
+                    pageNumberField.setText(newValue.replaceAll("[^\\d]", ""));
                 }
-                return null;
             }
-        };
+        });
 
-        new Thread(task).start();
+        imageTagsFilterTable.setItems(imageTagsFilterList);
+        refresh();
     }
 
-    public void UpdateData()
-    {
-        if(filterTags.size() == 0) {
-            imageCount = Datasource.getInstance().queryCountImages();
-        }
-        else {
-            List<String> tags = filterTags.stream()
+    public void refresh() {
+        if (imageTagsFilterList.size() == 0) {
+            imageCount = DatasourceController.queryCountImages();
+        } else {
+            List<String> tags = imageTagsFilterList.stream()
                     .map(object -> Objects.toString(object, null))
                     .collect(Collectors.toList());
-            imageCount = Datasource.getInstance().queryCountImagesWithTags(tags);
+            imageCount = DatasourceController.queryCountImagesWithTags(tags);
         }
 
-        if(imageCount > 0)
+        if (imageCount > 0) {
+            currentPageNumber = 1;
+            maxPageNumber = (int) Math.ceil(imageCount / imagesPerPge);
+        } else {
+            currentPageNumber = 0;
+            maxPageNumber = 0;
+        }
+
+        maxPageNumberLabel.setText(Integer.toString(maxPageNumber));
+
+        startDisplayImagesTask(1);
+    }
+    
+    private void startDisplayImagesTask(int pageNumber)
+    {
+        if(task != null && task.isRunning())
         {
-            pageNo = 1;
-            maxPageNo = (int)Math.ceil(imageCount / imagesPerPge) + 1;
+            Task oldTask = task;
+
+            task = new Task() {
+                @Override
+                protected Object call() throws Exception {
+                    oldTask.cancel();
+
+                    while (true)
+                    {
+                        if(oldTask.isCancelled() || oldTask.isDone())
+                            break;
+                    }
+
+                    displayImages(pageNumber);
+                    return  null;
+                }
+            };
         }
-        else
-        {
-            pageNo = 0;
-            maxPageNo = 0;
+        else {
+            task = new Task() {
+                @Override
+                protected Object call() throws Exception {
+                    displayImages(pageNumber);
+                    return null;
+                }
+            };
         }
 
-        maxPageNolabel.setText(Integer.toString(maxPageNo));
-
-        displayImages(1);
+        task.run();
     }
 
-    public void createImages(List<String> imageDirectories) {
+    private void displayImages(int pageNumber)
+    {
+        List<String> imageDirectories;
+        if (imageTagsFilterList.size() == 0)
+            imageDirectories = DatasourceController.queryImages((pageNumber - 1) * imagesPerPge, imagesPerPge);
+        else {
+            List<String> tags = imageTagsFilterList.stream()
+                    .map(object -> Objects.toString(object, null))
+                    .collect(Collectors.toList());
+            imageDirectories = DatasourceController.queryImagesWithTags(tags, (pageNumber - 1) * imagesPerPge, imagesPerPge);
+        }
+
+        startDisplayImagesTask(imageDirectories);
+    }
+
+    private void startDisplayImagesTask(List<String> imageDirectories) {
         List<VBox> images = new ArrayList<>();
         for (String imageDirectory : imageDirectories) {
-            VBox image = createImage(imageDirectory);
-            if(image != null)
+            VBox image = loadImage(imageDirectory);
+            if (image != null)
                 images.add(image);
         }
 
         Platform.runLater(new Runnable() {
             @Override
             public void run() {
-                tilePane.getChildren().clear();
-                pageNumberfield.setText(Integer.toString(pageNo));
-                for (VBox image: images) {
+                ImageContainerTilePane.getChildren().clear();
+                pageNumberField.setText(Integer.toString(currentPageNumber));
+                for (VBox image : images) {
                     if (image != null)
-                        tilePane.getChildren().add(image);
+                        ImageContainerTilePane.getChildren().add(image);
                 }
-                scrollPane.setVvalue(0.0);
-
+                ImageContainerScrollPane.setVvalue(0.0);
             }
         });
     }
 
-    public VBox createImage(String imageDirectory)
-    {
+    private VBox loadImage(String imageDirectory) {
         ImageView imageView = new ImageView();
 
         try {
             File file = new File(imageDirectory);
 
-            if(!file.exists())
+            if (!file.exists())
                 return null;
 
-            Image image = new Image(file.toURI().toString(),500,0,true,false);
+            Image image = new Image(file.toURI().toString(), imageWidth, 0, true, false);
             imageView.setImage(image);
 
-            imageView.setFitWidth(500);
-            imageView.setFitHeight(500);
+            imageView.setFitWidth(imageWidth);
+            imageView.setFitHeight(imageWidth);
 
             imageView.setPreserveRatio(true);
 
             imageView.setSmooth(true);
-            imageView.setCache(true);
+            imageView.setCache(false);
 
         } catch (IllegalArgumentException e) {
             e.printStackTrace();
         }
 
-        VBox pageBox = new VBox();
-        pageBox.setAlignment(Pos.CENTER);
-        pageBox.getChildren().add(imageView);
+        VBox imageContainer = new VBox();
+        imageContainer.setAlignment(Pos.CENTER);
+        imageContainer.getChildren().add(imageView);
 
         imageView = null;
 
-        pageBox.setOnMouseClicked(new EventHandler<MouseEvent>() {
+        imageContainer.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent click) {
-                if(click.getClickCount() == 2) {
+                if (click.getClickCount() == 2) {
                     openImageInfoWindow(imageDirectory);
                 }
             }
         });
 
-        return pageBox;
+        return imageContainer;
     }
 
     @FXML
-    public void nextPage()
-    {
-        if(lock.isLocked())
-            return;
+    private void previousPage() {
 
-        if(pageNo < maxPageNo)
-        {
-            pageNo++;
-            displayImages(pageNo);
+        if (currentPageNumber > 1) {
+            currentPageNumber--;
+            startDisplayImagesTask(currentPageNumber);
         }
     }
 
     @FXML
-    public void previousPage()
-    {
-        if(lock.isLocked())
-            return;
+    private void nextPage() {
 
-        if(pageNo > 1){
-            pageNo--;
-            displayImages(pageNo);
+        if (currentPageNumber < maxPageNumber) {
+            currentPageNumber++;
+            startDisplayImagesTask(currentPageNumber);
         }
     }
 
-    public void JumpToPage()
-    {
-        if(lock.isLocked())
-            return;
+    private void jumpToPage() {
 
         try {
-            int n = Integer.parseInt(pageNumberfield.getText());
-            n = MathematicalEquations.clampInt(n,1, maxPageNo);
+            int pageNumber = Integer.parseInt(pageNumberField.getText());
+            pageNumber = MathematicalEquations.clampInt(pageNumber, 1, maxPageNumber);
 
-            pageNo = n;
-            displayImages(pageNo);
+            currentPageNumber = pageNumber;
+            startDisplayImagesTask(currentPageNumber);
 
-        } catch (NumberFormatException e)
-        {
+        } catch (NumberFormatException e) {
             return;
         }
     }
 
-
     @FXML
-    public void openImageInfoWindow(String path) {
-
-        try {
-            FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("resources/ImageInfoWindow.fxml"));
-            Parent root = fxmlLoader.load();
-            Stage stage = new Stage();
-            ImageInfoWindowController imageInfoWindowController = fxmlLoader.getController();
-            imageInfoWindowController.SetImage(path);
-
-            stage.setTitle("Image: " + path);
-            stage.setScene(new Scene(root, 800, 600));
-            stage.show();
-
-        } catch (Exception e)
-        {
-
-        }
+    private void setTagsForComboBox() {
+        imageTagsComboBox.getItems().setAll(DatasourceController.queryTags());
     }
 
     @FXML
-    public void FillComboBox()
-    {
-        comboBox.getItems().setAll(Datasource.getInstance().queryTags());
-        //comboBox.getItems().addAll(Datasource.getInstance().queryTags());
-    }
-
-    @FXML
-    public void addFilter()
-    {
-        if(comboBox.getValue() == null || comboBox.getValue().toString().isBlank())
+    private void addImageTagToFilterList() {
+        if (imageTagsComboBox.getValue() == null || imageTagsComboBox.getValue().toString().isBlank())
             return;
 
-        if(!filterTags.contains(comboBox.getValue().toString()))
-        {
-            //image_Tags.add(comboBox.getValue().toString());
-            filterTags.add(comboBox.getValue().toString());
-            UpdateData();
-            displayImages(1);
-            System.out.println("Added");
+        if (!imageTagsFilterList.contains(imageTagsComboBox.getValue().toString())) {
+            imageTagsFilterList.add(imageTagsComboBox.getValue().toString());
+            refresh();
         }
     }
 
     @FXML
-    public void removeFilter() {
-        String selectedItem = tagTable.getSelectionModel().getSelectedItem();
+    private void removeImageTagFromFilterList() {
+        String selectedItem = imageTagsFilterTable.getSelectionModel().getSelectedItem();
 
         if (selectedItem != null) {
-            filterTags.remove(selectedItem);
-            UpdateData();
-            displayImages(1);
+            imageTagsFilterList.remove(selectedItem);
+            refresh();
         }
     }
 
     @FXML
-    public void openSettingsWindow() {
-        if(SettingsWindowController.getStage() != null)
+    private void openImageInfoWindow(String imageDirectory) {
+
+        Stage stage = ImageInfoWindowController.getStage();
+        if(stage != null && stage.isShowing())
+        {
+            ImageInfoWindowController.getInstance().swapImage(imageDirectory);
+            return;
+        }
+
+        try {
+            FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource(IMAGE_INFO_WINDOW_DIRECTORY));
+            Parent root = fxmlLoader.load();
+            Stage imageInfoWindowStage = new Stage();
+            ImageInfoWindowController imageInfoWindowController = fxmlLoader.getController();
+
+            imageInfoWindowController.initialize(imageInfoWindowStage, imageDirectory);
+
+            imageInfoWindowStage.setScene(new Scene(root, IMAGE_INFO_WINDOW_WIDTH, IMAGE_INFO_WINDOW_HEIGHT));
+
+            imageInfoWindowStage.show();
+
+        } catch (Exception e) {
+            System.out.println("Could not open Image Info Window for " + imageDirectory);
+            System.out.println(e.getMessage());
+        }
+    }
+
+    @FXML
+    private void openSettingsWindow() {
+        if (SettingsWindowController.getStage() != null)
             return;
 
         try {
-            //FXMLLoader fxmlLoader = new FXMLLoader(getClass().getResource("/resources/SettingsWindow.fxml"));
-            FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource("resources/SettingsWindow.fxml"));
+            FXMLLoader fxmlLoader = new FXMLLoader(Main.class.getResource(SETTINGS_WINDOW_DIRECTORY));
             Parent root = fxmlLoader.load();
-            folderStage = new Stage();
+            Stage settingsWindowStage = new Stage();
             SettingsWindowController settingsWindowController = fxmlLoader.getController();
 
 
-            settingsWindowController.initialise(folderStage);
+            settingsWindowController.initialise(settingsWindowStage);
 
-            folderStage.setTitle("Folder Window");
-            folderStage.setScene(new Scene(root, 400, 400));
-            folderStage.setResizable(false);
-            folderStage.initModality(Modality.APPLICATION_MODAL);
+            settingsWindowStage.setTitle(SETTINGS_WINDOW_TITLE);
+            settingsWindowStage.setScene(new Scene(root, SETTINGS_WINDOW_WIDTH, SETTINGS_WINDOW_HEIGHT));
+            settingsWindowStage.setResizable(false);
+            settingsWindowStage.initModality(Modality.APPLICATION_MODAL);
 
-            folderStage.show();
-            System.out.println("DONE");
+            settingsWindowStage.show();
 
         } catch (Exception e) {
-            System.out.println(e.getMessage());
-            e.printStackTrace();
+            System.out.println("Could not open settings window: " + e.getMessage());
         }
     }
-
-    public void Refresh()
-    {
-        UpdateData();
-    }
-
-/*    public void ScanForImages()
-    {
-        List<Folder> folders = Datasource.getInstance().queryFolders();
-        for (Folder folder: folders) {
-            System.out.println(folder);
-            List<String> test = FolderAndImageIO.ScanFolder(folder.getDirectory());
-
-            if(test != null) {
-                for (String insert : test) {
-                    Datasource.getInstance().insertImage(insert, folder.getId());
-                }
-            }
-        }
-    }*/
-
 }
