@@ -63,7 +63,7 @@ public class MainWindowController {
     private ObservableList<String> imageTagsFilterList = FXCollections.observableArrayList();
 
     // Use to display selected number of images.
-    private final int imagesPerPge = 20;
+    private final int imagesPerPage = 20;
     private int imageCount = 0;
     private int currentPageNumber = 0;
     private int maxPageNumber = 0;
@@ -136,7 +136,7 @@ public class MainWindowController {
 
         if (imageCount > 0) {
             currentPageNumber = 1;
-            maxPageNumber = (int) Math.ceil(imageCount / imagesPerPge);
+            maxPageNumber = (int) Math.ceil((double) imageCount / imagesPerPage);
         } else {
             currentPageNumber = 0;
             maxPageNumber = 0;
@@ -195,12 +195,12 @@ public class MainWindowController {
     private List<String> getImageDirectories(int pageNumber) {
         List<String> imageDirectories;
         if (imageTagsFilterList.size() == 0)
-            imageDirectories = DatasourceController.queryImages((pageNumber - 1) * imagesPerPge, imagesPerPge);
+            imageDirectories = DatasourceController.queryImages((pageNumber - 1) * imagesPerPage, imagesPerPage);
         else {
             List<String> tags = imageTagsFilterList.stream()
                     .map(object -> Objects.toString(object, null))
                     .collect(Collectors.toList());
-            imageDirectories = DatasourceController.queryImagesWithTags(tags, (pageNumber - 1) * imagesPerPge, imagesPerPge);
+            imageDirectories = DatasourceController.queryImagesWithTags(tags, (pageNumber - 1) * imagesPerPage, imagesPerPage);
         }
 
         return imageDirectories;
