@@ -508,6 +508,8 @@ class Datasource {
         try {
             deleteImageStatement.setString(1, directory);
             deleteImageStatement.executeUpdate();
+
+            deleteUnusedTags();
         } catch (SQLException e) {
             System.out.println("Could not delete image: " + e.getMessage());
         }
@@ -519,6 +521,8 @@ class Datasource {
     public void deleteUnusedImages() {
         try (PreparedStatement preparedStatement = connection.prepareStatement(DELETE_UNUSED_IMAGES)) {
             preparedStatement.executeUpdate();
+
+            deleteUnusedTags();
         } catch (SQLException e) {
             System.out.println("Could not delete unused images: " + e.getMessage());
         }
