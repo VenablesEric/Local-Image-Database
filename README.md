@@ -13,4 +13,5 @@ You can:
 The app identifies an image by it's path. If you move or rename the image the app will think the image has been deleted are will remove the entry from the database.
 
 Video Demonstration
+
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/dCE_dGYSgoU/0.jpg)](https://www.youtube.com/watch?v=dCE_dGYSgoU)
