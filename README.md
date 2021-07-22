@@ -1,9 +1,8 @@
 # Local-Image-Database
 
 External Libraries need to run source code:
-
-sqlite-jdbc-3.34.0.jar
-JavaFX-11
+* sqlite-jdbc-3.34.0.jar
+* JavaFX-11
 
 jar download
 https://drive.google.com/file/d/1cFg4UwFM7JhjBAiah0d__lYGyJI94xhZ/view?usp=sharing
