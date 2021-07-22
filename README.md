@@ -4,7 +4,7 @@ External Libraries need to run source code:
 * sqlite-jdbc-3.34.0.jar
 * JavaFX-11
 
-jar download
+jar version download:
 https://drive.google.com/file/d/1cFg4UwFM7JhjBAiah0d__lYGyJI94xhZ/view?usp=sharing
 
 An application that categorise and filters images on a local computer.
