@@ -7,7 +7,7 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module-library">
+    <orderEntry type="module-library" exported="">
       <library>
         <CLASSES>
           <root url="jar://$MODULE_DIR$/../../../../Study/Coding/Udemy.com/Java Programming Masterclass/lib/sqlite-jdbc-3.34.0.jar!/" />
@@ -16,6 +16,6 @@
         <SOURCES />
       </library>
     </orderEntry>
-    <orderEntry type="library" name="JavaFX-11" level="application" />
+    <orderEntry type="library" exported="" name="JavaFX-11" level="application" />
   </component>
 </module>

@@ -26,7 +26,6 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import sample.Main;
-import sample.model.Datasource;
 import sample.model.DatasourceController;
 import sample.util.MathematicalEquations;
 
@@ -37,7 +36,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-// Reset scroll area when goinh to nect paga
+/**
+ * Main window for application.
+ * displays / filters images in the database.
+ * Open a window to add folders to database.
+ * Open a new window to add tags to selected image.
+ */
 public class MainWindowController {
 
     private static MainWindowController instances;
@@ -55,8 +59,10 @@ public class MainWindowController {
     @FXML
     private ListView<String> imageTagsFilterTable;
 
+    // Use to keep imageTagsFilterTable updated with selected tags.
     private ObservableList<String> imageTagsFilterList = FXCollections.observableArrayList();
 
+    // Use to display selected number of images.
     private final int imagesPerPge = 20;
     private int imageCount = 0;
     private int currentPageNumber = 0;
@@ -75,15 +81,23 @@ public class MainWindowController {
     private final int SETTINGS_WINDOW_WIDTH = 400;
     private final int SETTINGS_WINDOW_HEIGHT = 400;
 
+    // Use to take long tasks off the ui thread, while making sure that one task can run at a time on this window.
     private Task task;
 
+    /**
+     * @return singleton instance.
+     */
     public static MainWindowController getInstances() {
         return instances;
     }
 
+    /**
+     * Set up the window.
+     */
     public void initialise() {
         instances = this;
 
+        // Change the page number by inputting a number and pressing the enter key.
         pageNumberField.setOnKeyReleased(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent event) {
@@ -93,19 +107,23 @@ public class MainWindowController {
         });
 
 
+        // Add a listener to page number field to only allow numbers to be entered.
         pageNumberField.textProperty().addListener(new ChangeListener<String>() {
             @Override
             public void changed(ObservableValue<? extends String> observable, String oldValue, String newValue) {
-                if(!newValue.matches("\\d*")) {
+                if (!newValue.matches("\\d*")) {
                     pageNumberField.setText(newValue.replaceAll("[^\\d]", ""));
                 }
             }
         });
 
-        imageTagsFilterTable.setItems(imageTagsFilterList);
+        imageTagsFilterTable.setItems(imageTagsFilterList); // Set tag table to be linked to list of tags.
         refresh();
     }
 
+    /**
+     * Get image count with filters and refresh the image page back to page one.
+     */
     public void refresh() {
         if (imageTagsFilterList.size() == 0) {
             imageCount = DatasourceController.queryCountImages();
@@ -126,13 +144,17 @@ public class MainWindowController {
 
         maxPageNumberLabel.setText(Integer.toString(maxPageNumber));
 
-        startDisplayImagesTask(1);
+        displayImagesTask(1);
     }
-    
-    private void startDisplayImagesTask(int pageNumber)
-    {
-        if(task != null && task.isRunning())
-        {
+
+    /**
+     * Start a task that will get images and display them on the screen.
+     *
+     * @param pageNumber use to load images for the correct page.
+     */
+    private void displayImagesTask(int pageNumber) {
+        // Cancel task and start loading next page if current task has not completed.
+        if (task != null && task.isRunning()) {
             Task oldTask = task;
 
             task = new Task() {
@@ -140,32 +162,37 @@ public class MainWindowController {
                 protected Object call() throws Exception {
                     oldTask.cancel();
 
-                    while (true)
-                    {
-                        if(oldTask.isCancelled() || oldTask.isDone())
+                    while (true) {
+                        if (oldTask.isCancelled() || oldTask.isDone())
                             break;
                     }
 
-                    displayImages(pageNumber);
-                    return  null;
+                    List<String> imageDirectories = getImageDirectories(pageNumber);
+                    displayImages(imageDirectories);
+                    return null;
                 }
             };
-        }
-        else {
+        } else {
             task = new Task() {
                 @Override
                 protected Object call() throws Exception {
-                    displayImages(pageNumber);
+                    List<String> imageDirectories = getImageDirectories(pageNumber);
+                    displayImages(imageDirectories);
                     return null;
                 }
             };
         }
 
-        task.run();
+        new Thread(task).start();
     }
 
-    private void displayImages(int pageNumber)
-    {
+    /**
+     * Get a list of image directories to be use to load the image.
+     *
+     * @param pageNumber use to get images for the correct page.
+     * @return list of image directories
+     */
+    private List<String> getImageDirectories(int pageNumber) {
         List<String> imageDirectories;
         if (imageTagsFilterList.size() == 0)
             imageDirectories = DatasourceController.queryImages((pageNumber - 1) * imagesPerPge, imagesPerPge);
@@ -176,17 +203,27 @@ public class MainWindowController {
             imageDirectories = DatasourceController.queryImagesWithTags(tags, (pageNumber - 1) * imagesPerPge, imagesPerPge);
         }
 
-        startDisplayImagesTask(imageDirectories);
+        return imageDirectories;
     }
 
-    private void startDisplayImagesTask(List<String> imageDirectories) {
+    /**
+     * Load images and set a task on the main ui thread to display the images.
+     *
+     * @param imageDirectories list of image directories.
+     */
+    private void displayImages(List<String> imageDirectories) {
+
+        // Holder for loaded images.
         List<VBox> images = new ArrayList<>();
+
+        // Load each image
         for (String imageDirectory : imageDirectories) {
             VBox image = loadImage(imageDirectory);
             if (image != null)
                 images.add(image);
         }
 
+        // Task will run on the main ui thread at some point.
         Platform.runLater(new Runnable() {
             @Override
             public void run() {
@@ -196,11 +233,19 @@ public class MainWindowController {
                     if (image != null)
                         ImageContainerTilePane.getChildren().add(image);
                 }
+
+                // Reset scroll pane to top.
                 ImageContainerScrollPane.setVvalue(0.0);
             }
         });
     }
 
+    /**
+     * Load image from hard drive.
+     *
+     * @param imageDirectory image directory to load.
+     * @return loaded image.
+     */
     private VBox loadImage(String imageDirectory) {
         ImageView imageView = new ImageView();
 
@@ -231,6 +276,7 @@ public class MainWindowController {
 
         imageView = null;
 
+        // Open image info window when double clicked.
         imageContainer.setOnMouseClicked(new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent click) {
@@ -243,24 +289,33 @@ public class MainWindowController {
         return imageContainer;
     }
 
+    /**
+     * Load images from previous page.
+     */
     @FXML
     private void previousPage() {
 
         if (currentPageNumber > 1) {
             currentPageNumber--;
-            startDisplayImagesTask(currentPageNumber);
+            displayImagesTask(currentPageNumber);
         }
     }
 
+    /**
+     * Load images on next page.
+     */
     @FXML
     private void nextPage() {
 
         if (currentPageNumber < maxPageNumber) {
             currentPageNumber++;
-            startDisplayImagesTask(currentPageNumber);
+            displayImagesTask(currentPageNumber);
         }
     }
 
+    /**
+     * Load images from selected page.
+     */
     private void jumpToPage() {
 
         try {
@@ -268,18 +323,24 @@ public class MainWindowController {
             pageNumber = MathematicalEquations.clampInt(pageNumber, 1, maxPageNumber);
 
             currentPageNumber = pageNumber;
-            startDisplayImagesTask(currentPageNumber);
+            displayImagesTask(currentPageNumber);
 
         } catch (NumberFormatException e) {
             return;
         }
     }
 
+    /**
+     * Get all tags from database and set them in the combo box when combo box is clicked.
+     */
     @FXML
     private void setTagsForComboBox() {
         imageTagsComboBox.getItems().setAll(DatasourceController.queryTags());
     }
 
+    /**
+     * Add selected tag from combo box to list of current tags and refresh images.
+     */
     @FXML
     private void addImageTagToFilterList() {
         if (imageTagsComboBox.getValue() == null || imageTagsComboBox.getValue().toString().isBlank())
@@ -291,6 +352,9 @@ public class MainWindowController {
         }
     }
 
+    /**
+     * Remove selected tag from list of current tags and refresh images.
+     */
     @FXML
     private void removeImageTagFromFilterList() {
         String selectedItem = imageTagsFilterTable.getSelectionModel().getSelectedItem();
@@ -301,12 +365,18 @@ public class MainWindowController {
         }
     }
 
+    /**
+     * Open image info window with image and tags that are linked with image directory.
+     * If image window is already open the new image and data will replace the old one.
+     *
+     * @param imageDirectory directory of image.
+     */
     @FXML
     private void openImageInfoWindow(String imageDirectory) {
 
         Stage stage = ImageInfoWindowController.getStage();
-        if(stage != null && stage.isShowing())
-        {
+        // Swap image and data with new one if window is open.
+        if (stage != null && stage.isShowing()) {
             ImageInfoWindowController.getInstance().swapImage(imageDirectory);
             return;
         }
@@ -329,8 +399,12 @@ public class MainWindowController {
         }
     }
 
+    /**
+     * Open settings window to add or remove folders, and scan for images in folders.
+     */
     @FXML
     private void openSettingsWindow() {
+        // Only one settings window can be open.
         if (SettingsWindowController.getStage() != null)
             return;
 
@@ -346,7 +420,7 @@ public class MainWindowController {
             settingsWindowStage.setTitle(SETTINGS_WINDOW_TITLE);
             settingsWindowStage.setScene(new Scene(root, SETTINGS_WINDOW_WIDTH, SETTINGS_WINDOW_HEIGHT));
             settingsWindowStage.setResizable(false);
-            settingsWindowStage.initModality(Modality.APPLICATION_MODAL);
+            settingsWindowStage.initModality(Modality.APPLICATION_MODAL); // Settings window will be the only window selectable when open.
 
             settingsWindowStage.show();
 

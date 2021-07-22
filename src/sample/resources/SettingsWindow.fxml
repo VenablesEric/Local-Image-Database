@@ -28,9 +28,9 @@
             </HBox>
             <HBox alignment="BOTTOM_RIGHT" prefHeight="100.0" prefWidth="200.0" spacing="15.0">
                <children>
-                  <Button mnemonicParsing="false" onAction="#updateImagesButton" text="Rescan" />
+                  <Button mnemonicParsing="false" onAction="#rescanImagesButton" text="Rescan" />
                   <Button mnemonicParsing="false" onAction="#resetFolderList" text="Restore" />
-                  <Button mnemonicParsing="false" onAction="#updateImagesButton" text="Save" />
+                  <Button mnemonicParsing="false" onAction="#rescanImagesButton" text="Save" />
                </children>
                <opaqueInsets>
                   <Insets />

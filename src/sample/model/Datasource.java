@@ -4,34 +4,49 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Datasource {
+/**
+ * A singleton class that connects to a database that stores image locations and image tags.
+ * The class will create the database if it does not already exists. The databases will be in the folder with the .exe
+ * The Database consists of 5 tables called: folders, images, imagesFolders, tags, imageTags.
+ * folders table: stores the folder directory that will be used to pull images from.
+ * images table: stores the directory of images.
+ * imagesFolders: stories the link between the image directory and which parent folder it is apart of.
+ * tags:  stores unique tag names.
+ * imageTags: stores which images has which tags.
+ * Uses sqlite-jdbc-3.34.0.jar
+ */
+class Datasource {
     private static Datasource instance = new Datasource();
 
     private static final String DATABASE_NAME = "\\MyData.db";
 
+    // Folder table
     private static final String TABLE_FOLDERS = "folders";
     private static final String COLUMN_FOLDERS_ID = "_id";
     private static final String COLUMN_FOLDERS_DIRECTORY = "directory";
 
+    // Images table
     private static final String TABLE_IMAGES = "images";
     private static final String COLUMN_IMAGES_ID = "_id";
     private static final String COLUMN_IMAGES_LOCATION = "location";
 
+    // Image folders table
     private static final String TABLE_IMAGE_FOLDERS = "imageFolders";
     private static final String COLUMN_IMAGES_FOLDER_IMAGE_ID = "image_id";
     private static final String COLUMN_IMAGES_FOLDER_FOLDER_ID = "folder_id";
 
+    // Tags table
     private static final String TABLE_TAGS = "tags";
     private static final String COLUMN_TAGS_ID = "_id";
     private static final String COLUMN_TAGS_TAG = "tag";
 
+    // Image tags table
     private static final String TABLE_IMAGE_TAGS = "image_tags";
     private static final String COLUMN_IMAGE_TAGS_IMAGE_ID = "image_id";
     private static final String COLUMN_IMAGES_TAGS_TAG_ID = "tag_id";
 
     private static final String ENABLE_FOREIGN_KEYS = "PRAGMA foreign_keys = ON;";
 
-    // Add unique to some of them
     private static final String CREATE_TABLE_FOLDERS = String.format(
             "CREATE TABLE IF NOT EXISTS %s (" +
                     "%s INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -159,22 +174,22 @@ public class Datasource {
     private static final String QUERY_IMAGES_COUNT = String.format(
             "SELECT COUNT(*) AS count FROM %s", TABLE_IMAGES);
 
-    private static final String QUERY_IMAGES_COUNT_WHERE_PART_1 =  String.format(
-                "SELECT count(*) AS count FROM ( " +
-                        "SELECT count(*) AS count FROM %s " +
-                        "JOIN %s ON %s.%s = %s.%s " +
-                        "JOIN %s ON %s.%s == %s.%s " +
-                        "WHERE %s.%s IN (",
-                TABLE_IMAGES,
-                TABLE_IMAGE_TAGS, TABLE_IMAGE_TAGS, COLUMN_IMAGE_TAGS_IMAGE_ID, TABLE_IMAGES, COLUMN_IMAGES_ID,
-                TABLE_TAGS, TABLE_TAGS, COLUMN_TAGS_ID, TABLE_IMAGE_TAGS, COLUMN_IMAGES_TAGS_TAG_ID,
-                TABLE_TAGS, COLUMN_TAGS_TAG);
+    private static final String QUERY_IMAGES_COUNT_WHERE_PART_1 = String.format(
+            "SELECT count(*) AS count FROM ( " +
+                    "SELECT count(*) AS count FROM %s " +
+                    "JOIN %s ON %s.%s = %s.%s " +
+                    "JOIN %s ON %s.%s == %s.%s " +
+                    "WHERE %s.%s IN (",
+            TABLE_IMAGES,
+            TABLE_IMAGE_TAGS, TABLE_IMAGE_TAGS, COLUMN_IMAGE_TAGS_IMAGE_ID, TABLE_IMAGES, COLUMN_IMAGES_ID,
+            TABLE_TAGS, TABLE_TAGS, COLUMN_TAGS_ID, TABLE_IMAGE_TAGS, COLUMN_IMAGES_TAGS_TAG_ID,
+            TABLE_TAGS, COLUMN_TAGS_TAG);
 
     private static final String QUERY_IMAGES_COUNT_WHERE_PART_2 = String.format(
             ") " +
-            "GROUP BY %s.%s " +
-            "HAVING count = ?);",
-    TABLE_IMAGES, COLUMN_IMAGES_ID);
+                    "GROUP BY %s.%s " +
+                    "HAVING count = ?);",
+            TABLE_IMAGES, COLUMN_IMAGES_ID);
 
     private static final String QUERY_TAG_WHERE = String.format(
             "SELECT %s FROM %s WHERE %s = ?",
@@ -215,25 +230,38 @@ public class Datasource {
     private PreparedStatement queryTagWhereStatement;
     private PreparedStatement queryTagsOnImageStatement;
 
+    /**
+     * Only private instances.
+     */
     private Datasource() {
     }
 
+    /**
+     * @return the singleton instance.
+     */
     public static Datasource getInstance() {
         return instance;
     }
 
+    /**
+     * Opens or creates a new database. Sets up prepare statements.
+     *
+     * @return has the database been open.
+     */
     public boolean open() {
         try {
 
-            if(connection != null && !connection.isClosed())
-            {
+            if (connection != null && !connection.isClosed()) {
                 System.out.println("Database is already connected");
                 return false;
             }
 
-            connection = DriverManager.getConnection("jdbc:sqlite:" + System.getProperty("user.dir") + DATABASE_NAME); // Load or create new database at .exe path
+            // Load or create new database at .exe path
+            connection = DriverManager.getConnection("jdbc:sqlite:" + System.getProperty("user.dir") + DATABASE_NAME);
 
+            // Create tables if absent
             boolean connected = databaseSetup();
+
             insertFolderStatement = connection.prepareStatement(INSERT_FOLDER);
             insertImageStatement = connection.prepareStatement(INSERT_IMAGE, Statement.RETURN_GENERATED_KEYS);
             insertTagStatement = connection.prepareStatement(INSERT_TAG, Statement.RETURN_GENERATED_KEYS);
@@ -259,6 +287,11 @@ public class Datasource {
         }
     }
 
+    /**
+     * Create table for database if they are absent
+     *
+     * @return false if the tables failed to be created.
+     */
     private boolean databaseSetup() {
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate(ENABLE_FOREIGN_KEYS);
@@ -275,6 +308,9 @@ public class Datasource {
         }
     }
 
+    /**
+     * Close all prepare statements and database.
+     */
     public void close() {
         try {
             if (insertFolderStatement != null) {
@@ -322,6 +358,11 @@ public class Datasource {
         }
     }
 
+    /**
+     * Insert a folder directory that will be use to search for images.
+     *
+     * @param directory folder path to find images from.
+     */
     public void insertFolder(String directory) {
         try {
             insertFolderStatement.setString(1, directory);
@@ -331,7 +372,13 @@ public class Datasource {
         }
     }
 
-    public void insertImage(String directory, int folderID) {
+    /**
+     * Insert a image directory and link it to its corresponding folder
+     *
+     * @param directory image directory.
+     * @param folderID  an id that can be found in the folders table.
+     */
+    private void insertImage(String directory, int folderID) {
 
         if (hasImage(directory))
             return;
@@ -353,29 +400,39 @@ public class Datasource {
         }
     }
 
+    /**
+     * Insert a list of image directories and link them to their corresponding folder.
+     *
+     * @param directories list of image directories.
+     * @param folderID    an id that can be found in the folders table.
+     */
     public void insertImages(List<String> directories, int folderID) {
         for (String imageDirectory : directories) {
             insertImage(imageDirectory, folderID);
         }
     }
 
+    /**
+     * Insert a unique tag into the tags table.
+     *
+     * @param tag to be added to the tag table
+     * @return tag's id in the table. -1 represents a failed insertion.
+     */
     private int insertTag(String tag) {
 
-        int id = queryTagID(tag);
-        if(id != -1)
-            return id;
+        int tagID = queryTagID(tag); // get the tag id if it is already in the tags table.
+        if (tagID != -1)
+            return tagID;
 
         try {
             insertTagStatement.setString(1, tag);
             insertTagStatement.executeUpdate();
 
-            try(ResultSet resultSet = insertTagStatement.getGeneratedKeys())
-            {
-                if(resultSet.next()) {
-                    return resultSet.getInt(1);
+            try (ResultSet resultSet = insertTagStatement.getGeneratedKeys()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt(1); // Return tag's ID of new entry.
                 }
-            } catch (SQLException e)
-            {
+            } catch (SQLException e) {
                 System.out.println("Failed to get id of lst inserted tag: " + e.getMessage());
                 return -1;
             }
@@ -388,6 +445,12 @@ public class Datasource {
         return -1;
     }
 
+    /**
+     * Insert the link between an image and its corresponding folder.
+     *
+     * @param imageID  id of an image in the images table.
+     * @param folderID id of a folder in the folders table.
+     */
     private void insertImageFolder(int imageID, int folderID) {
         try {
             insertImageFolderStatement.setInt(1, imageID);
@@ -398,9 +461,15 @@ public class Datasource {
         }
     }
 
+    /**
+     * Insert the link between an image and tag into the imageTag table.
+     *
+     * @param directory directory of an image.
+     * @param tag       name of a tag.
+     */
     public void insertImageTag(String directory, String tag) {
         int imageID = queryImageID(directory);
-        int tagID = insertTag(tag);;
+        int tagID = insertTag(tag);
 
         if (imageID == -1 || tagID == -1)
             return;
@@ -415,16 +484,26 @@ public class Datasource {
         }
     }
 
-    public void deleteFolder(String folder) {
+    /**
+     * Remove directory of folder from the folders table.
+     *
+     * @param directory the folder directory.
+     */
+    public void deleteFolder(String directory) {
         try {
-            deleteFolderStatement.setString(1, folder);
-           deleteFolderStatement.executeUpdate();
+            deleteFolderStatement.setString(1, directory);
+            deleteFolderStatement.executeUpdate();
 
         } catch (SQLException e) {
             System.out.println("Folder deletion failed: " + e.getMessage());
         }
     }
 
+    /**
+     * Remove image directory from the images table.
+     *
+     * @param directory the image directory.
+     */
     public void deleteImage(String directory) {
         try {
             deleteImageStatement.setString(1, directory);
@@ -434,14 +513,23 @@ public class Datasource {
         }
     }
 
+    /**
+     * Remove images from image table that does not have a corresponding parent folder.
+     */
     public void deleteUnusedImages() {
-        try (PreparedStatement preparedStatement = connection.prepareStatement(DELETE_UNUSED_IMAGES)){
+        try (PreparedStatement preparedStatement = connection.prepareStatement(DELETE_UNUSED_IMAGES)) {
             preparedStatement.executeUpdate();
         } catch (SQLException e) {
             System.out.println("Could not delete unused images: " + e.getMessage());
         }
     }
 
+    /**
+     * Remove tag from an image.
+     *
+     * @param directory the image directory.
+     * @param tag       tag to remove.
+     */
     public void deleteImageTag(String directory, String tag) {
         int imageID = queryImageID(directory);
         int tagID = queryTagID(tag);
@@ -460,7 +548,10 @@ public class Datasource {
         }
     }
 
-    public void deleteUnusedTags() {
+    /**
+     * Remove all unused tags.
+     */
+    private void deleteUnusedTags() {
         try (Statement statement = connection.createStatement()) {
             statement.executeUpdate(DELETE_UNUSED_TAGS);
 
@@ -469,20 +560,25 @@ public class Datasource {
         }
     }
 
-    public List<Folder> queryFolders() {
+    /**
+     * Get all entries and rows in the folders table.
+     *
+     * @return a list that contains folder directory and folder id.
+     */
+    public List<QueryFolderEntry> queryFolders() {
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(QUERY_FOLDERS)) {
 
-            List<Folder> folders = new ArrayList<>();
+            List<QueryFolderEntry> queryFolderEntries = new ArrayList<>();
             while (resultSet.next()) {
-                Folder folder = new Folder(
+                QueryFolderEntry queryFolderEntry = new QueryFolderEntry(
                         resultSet.getInt(COLUMN_FOLDERS_ID),
                         resultSet.getString(COLUMN_FOLDERS_DIRECTORY)
                 );
-                folders.add(folder);
+                queryFolderEntries.add(queryFolderEntry);
             }
 
-            return folders;
+            return queryFolderEntries;
 
         } catch (SQLException e) {
             System.out.println("Query folders failed: " + e.getMessage());
@@ -490,6 +586,11 @@ public class Datasource {
         }
     }
 
+    /**
+     * Get a list of folder directories from the folders table.
+     *
+     * @return a list of folder directories.
+     */
     public List<String> queryFoldersForDirectory() {
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(QUERY_FOLDERS)) {
@@ -507,6 +608,22 @@ public class Datasource {
         }
     }
 
+    /**
+     * Is image directory present in images table.
+     *
+     * @param directory image directory.
+     * @return true if image if present in images table.
+     */
+    public boolean hasImage(String directory) {
+        return queryImageID(directory) != -1 ? true : false;
+    }
+
+    /**
+     * Get id of image directory that is in the images table.
+     *
+     * @param directory image directory.
+     * @return the id of image directory in images table. -1 represents not in table or failed to work.
+     */
     private int queryImageID(String directory) {
         try {
             queryImageWhereStatement.setString(1, directory);
@@ -528,6 +645,13 @@ public class Datasource {
         }
     }
 
+    /**
+     * Get a limited list of image directories from image table.
+     *
+     * @param from start point from the images table.
+     * @param next how many image directories from image table.
+     * @return list of image directories.
+     */
     public List<String> queryImages(int from, int next) {
         try {
             queryImagesLimitStatement.setInt(1, from);
@@ -551,6 +675,11 @@ public class Datasource {
         }
     }
 
+    /**
+     * Get the total number of image directories in image table.
+     *
+     * @return the number of images in the images table.
+     */
     public int queryCountImages() {
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(QUERY_IMAGES_COUNT)) {
@@ -563,10 +692,20 @@ public class Datasource {
         }
     }
 
+    /**
+     * Get a limited list of image directories from image table that have matching tags.
+     *
+     * @param tags list of tags to filter by.
+     * @param from start point from the images table.
+     * @param next how many image directories from image table.
+     * @return list of image directories which matching tags.
+     */
     public List<String> queryImagesWithTags(List<String> tags, int from, int next) {
 
+        // Create new prepare statement to include all tags.
         try (PreparedStatement statement = connection.prepareStatement(createQueryImagesWithTagsLimitStatement(tags))) {
 
+            // Add all tags to prepared statement
             int i = 1;
             while (i <= tags.size()) {
                 statement.setString(i, tags.get(i - 1));
@@ -596,6 +735,12 @@ public class Datasource {
         }
     }
 
+    /**
+     * Create a prepare statement to query images with tags limit with any amount of tags.
+     *
+     * @param tags size of the list will be use to add ? into the prepare statement.
+     * @return query statement for images with tags with a limit.
+     */
     private String createQueryImagesWithTagsLimitStatement(List<String> tags) {
         StringBuilder sb = new StringBuilder();
         sb.append(QUERY_IMAGES_WITH_TAGS_LIMIT_PART_1);
@@ -612,9 +757,15 @@ public class Datasource {
         return sb.toString();
     }
 
+    /**
+     * Get the total number of image directories in image table with matching tags.
+     *
+     * @param tags list of tags to filter by.
+     * @return number of images with matching tags in images table.
+     */
     public int queryCountImagesWithTags(List<String> tags) {
 
-        try (PreparedStatement statement = connection.prepareStatement(createQueryImagesCountStatement(tags))) {
+        try (PreparedStatement statement = connection.prepareStatement(createQueryImagesCountWithTagsStatement(tags))) {
 
             int i = 1;
             while (i <= tags.size()) {
@@ -637,7 +788,13 @@ public class Datasource {
         }
     }
 
-    private String createQueryImagesCountStatement(List<String> tags) {
+    /**
+     * Create a prepare statement to query number of images with tags.
+     *
+     * @param tags size of the list will be use to add ? into the prepare statement.
+     * @return query statement for Image count with tags.
+     */
+    private String createQueryImagesCountWithTagsStatement(List<String> tags) {
 
         StringBuilder sb = new StringBuilder();
         sb.append(QUERY_IMAGES_COUNT_WHERE_PART_1);
@@ -654,6 +811,12 @@ public class Datasource {
         return sb.toString();
     }
 
+    /**
+     * Get the id for the matching tag in the tags table.
+     *
+     * @param tag name of the tag
+     * @return the tag id in the tags table or -1 if absent from table
+     */
     private int queryTagID(String tag) {
         try {
             queryTagWhereStatement.setString(1, tag);
@@ -677,6 +840,11 @@ public class Datasource {
         }
     }
 
+    /**
+     * Get a list of all tags in tags table.
+     *
+     * @return list of tags.
+     */
     public List<String> queryTags() {
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(QUERY_TAGS)) {
@@ -694,6 +862,12 @@ public class Datasource {
         }
     }
 
+    /**
+     * Get a list of all tags that are linked with the selected image directory.
+     *
+     * @param directory image directory.
+     * @return list of tags linked with image directory.
+     */
     public List<String> queryTagsOnImage(String directory) {
         try {
             queryTagsOnImageStatement.setString(1, directory);
@@ -715,9 +889,5 @@ public class Datasource {
             System.out.println("Query tags on image  failed: " + e.getMessage());
             return null;
         }
-    }
-
-    private boolean hasImage(String directory) {
-        return queryImageID(directory) != -1 ? true : false;
     }
 }

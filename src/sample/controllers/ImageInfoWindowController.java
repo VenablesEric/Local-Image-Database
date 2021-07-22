@@ -18,7 +18,6 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
-import sample.model.Datasource;
 import sample.model.DatasourceController;
 
 import java.io.File;
@@ -28,6 +27,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * Window that displays the selected image and it tag data.
+ */
 public class ImageInfoWindowController {
 
     private static Stage stage;
@@ -42,6 +44,7 @@ public class ImageInfoWindowController {
     @FXML
     ComboBox imageTagsComboBox;
 
+    // Use to keep imageTagsListView updated with tags on the image.
     private ObservableList<String> imageTagList = FXCollections.observableArrayList();
     private List<String> originalImageTagList = new ArrayList<>();
 
@@ -49,14 +52,26 @@ public class ImageInfoWindowController {
 
     private final int imageSize = 500;
 
+    /**
+     * @return singleton instance.
+     */
     public static ImageInfoWindowController getInstance() {
         return instance;
     }
 
+    /**
+     * @return stage that was used to create window.
+     */
     public static Stage getStage() {
         return stage;
     }
 
+    /**
+     * Load image and image data that is link with imageDirectory.
+     *
+     * @param stage          stage that was used to create window.
+     * @param imageDirectory directory of image
+     */
     public void initialize(Stage stage, String imageDirectory) {
 
         instance = this;
@@ -64,6 +79,7 @@ public class ImageInfoWindowController {
 
         stage.setTitle(IMAGE_INFO_WINDOW_TITLE + imageDirectory);
 
+        // Ask to save unsaved changes.
         stage.setOnCloseRequest(new EventHandler<WindowEvent>() {
             @Override
             public void handle(WindowEvent event) {
@@ -72,23 +88,22 @@ public class ImageInfoWindowController {
                         .collect(Collectors.toList());
 
                 if (!tags.equals(originalImageTagList)) {
-                    if(unsavedDataAlert())
-                    {
+                    if (unsavedDataAlert()) {
                         ImageInfoWindowController.stage = null;
-                    } else
-                    {
+                    } else {
                         event.consume();
                     }
-                } else
-                {
+                } else {
                     ImageInfoWindowController.stage = null;
                 }
             }
         });
 
+        // Set tag table to be linked to list of tags.
         imageTagsListView.setItems(imageTagList);
         this.imageDirectory = imageDirectory;
 
+        // Load image and tags
         Task task = new Task() {
             @Override
             protected Object call() throws Exception {
@@ -101,10 +116,15 @@ public class ImageInfoWindowController {
         new Thread(task).start();
     }
 
-    private void createImage(String path) {
+    /**
+     * Load image and display it.
+     *
+     * @param imageDirectory image directory.
+     */
+    private void createImage(String imageDirectory) {
 
         try {
-            File file = new File(path);
+            File file = new File(imageDirectory);
             Image image = new Image(file.toURI().toString());
             ImageView imageView = new ImageView(image);
 
@@ -118,6 +138,7 @@ public class ImageInfoWindowController {
             imageContainer.setAlignment(Pos.CENTER);
             imageContainer.getChildren().add(imageView);
 
+            // Set the image to display on the main ui thread
             Platform.runLater(new Runnable() {
                 @Override
                 public void run() {
@@ -126,11 +147,16 @@ public class ImageInfoWindowController {
             });
 
         } catch (IllegalArgumentException e) {
-            System.out.println("Could not load image: " + imageDirectory);
+            System.out.println("Could not load image: " + this.imageDirectory);
             System.out.println(e.getMessage());
         }
     }
 
+    /**
+     * Get tags that are linked with the image directory and display them on the view table
+     *
+     * @param imageDirectory directory of the image.
+     */
     private void setImageTagList(String imageDirectory) {
 
         Task<ObservableList> task = new Task<ObservableList>() {
@@ -138,6 +164,7 @@ public class ImageInfoWindowController {
             protected ObservableList call() throws Exception {
                 originalImageTagList = DatasourceController.queryTagsOnImage(imageDirectory);
 
+                // Update tag list on the main thread.
                 Platform.runLater(new Runnable() {
                     @Override
                     public void run() {
@@ -152,6 +179,11 @@ public class ImageInfoWindowController {
         new Thread(task).start();
     }
 
+    /**
+     * Add new tag from combo box to tag list that has been entered.
+     *
+     * @param event the event the is linked to the combo box.
+     */
     @FXML
     private void onEnterKeyImageTagComboBox(KeyEvent event) {
         if (event.getCode().equals(KeyCode.ENTER)) {
@@ -164,6 +196,9 @@ public class ImageInfoWindowController {
         }
     }
 
+    /**
+     * Add tag from combo box to tag list.
+     */
     @FXML
     private void addImageTagToList() {
         if (imageTagsComboBox.getValue() == null || imageTagsComboBox.getValue().toString().isBlank())
@@ -174,6 +209,9 @@ public class ImageInfoWindowController {
         }
     }
 
+    /**
+     * Remove tag from tag list.
+     */
     @FXML
     private void removeImageTagFromList() {
         String selectedItem = imageTagsListView.getSelectionModel().getSelectedItem();
@@ -182,14 +220,27 @@ public class ImageInfoWindowController {
             imageTagList.remove(selectedItem);
     }
 
+    /**
+     * Reset unsaved changes to tag list
+     */
     @FXML
     private void resetImageTagList() {
         imageTagList.clear();
         imageTagList.addAll(originalImageTagList);
     }
 
+    /**
+     * Save tag on image to database.
+     */
     @FXML
     private void saveImageTags() {
+
+        // Is the image still in the database?
+        if (!DatasourceController.hasImageInDatabase(imageDirectory)) {
+            System.out.println("Missing image: " + imageDirectory);
+            return;
+        }
+
         List<String> tags = imageTagList.stream()
                 .map(object -> Objects.toString(object, null))
                 .collect(Collectors.toList());
@@ -214,19 +265,24 @@ public class ImageInfoWindowController {
         originalImageTagList = tags;
     }
 
+    /**
+     * Get tags from database and add them to combo box.
+     */
     @FXML
     private void setTagsForComboBox() {
         imageTagsComboBox.getItems().setAll(DatasourceController.queryTags());
     }
 
-
-    private boolean unsavedDataAlert()
-    {
+    /**
+     * Check if the user wants to save unsaved data.
+     *
+     * @return true if data was saved.
+     */
+    private boolean unsavedDataAlert() {
         ButtonType saveButton = new ButtonType("Save", ButtonBar.ButtonData.YES);
         ButtonType doNotSaveButton = new ButtonType("Don't Save", ButtonBar.ButtonData.NO);
         ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
 
-        //Alert.AlertType type = Alert.AlertType.CONFIRMATION;
 
         Alert alert = new Alert(Alert.AlertType.WARNING, "", saveButton, doNotSaveButton, cancelButton);
         alert.initModality(Modality.APPLICATION_MODAL);
@@ -238,27 +294,26 @@ public class ImageInfoWindowController {
 
         Optional<ButtonType> result = alert.showAndWait();
 
-        if(result.get() == saveButton)
-        {
+        if (result.get() == saveButton) {
             saveImageTags();
             return true;
-        }
-        else if(result.get() == doNotSaveButton)
-        {
+        } else if (result.get() == doNotSaveButton) {
             return true;
-        }
-        else if(result.get() == cancelButton)
-        {
+        } else if (result.get() == cancelButton) {
             return false;
         }
 
         return true;
     }
 
-    public void swapImage(String imageDirectory)
-    {
-        if(this.imageDirectory.equals(imageDirectory))
-        {
+    /**
+     * Swap image and image data with the new selected image.
+     *
+     * @param imageDirectory directory of selected image.
+     */
+    public void swapImage(String imageDirectory) {
+        // If same image focus on window
+        if (this.imageDirectory.equals(imageDirectory)) {
             stage.requestFocus();
             return;
         }
@@ -268,8 +323,7 @@ public class ImageInfoWindowController {
                 .collect(Collectors.toList());
 
         if (!tags.equals(originalImageTagList)) {
-            if(!unsavedDataAlert())
-            {
+            if (!unsavedDataAlert()) {
                 return;
             }
         }
