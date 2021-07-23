@@ -9,7 +9,7 @@ https://drive.google.com/file/d/1cFg4UwFM7JhjBAiah0d__lYGyJI94xhZ/view?usp=shari
 
 An application that categorise and filters images on a local computer.
 You can:
-* Add folders to pull images from.
+* Add folders to pull images from (ONLY .png & .jpg files will be pulled).
 * Add many custom tags to an image.
 * Filter images with one or more tags.
 
